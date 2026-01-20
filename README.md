@@ -1,82 +1,130 @@
-Enterprise-Grade GenAI RAG System with RBAC & Audit Logs
+# 🔐 Enterprise GenAI RAG System (FastAPI + Streamlit)
 
-A full-stack, enterprise-oriented Generative AI application built using FastAPI, FAISS, Streamlit, and LLMs, designed to demonstrate secure, role-aware knowledge retrieval, governance, and production-style architecture.
+An **enterprise-grade Generative AI application** demonstrating **secure Retrieval-Augmented Generation (RAG)** with **role-based access control (RBAC)**, **audit logging**, and a clean **Streamlit frontend**.
 
-This project goes beyond a basic chatbot and focuses on real-world GenAI concerns such as:
+This project is designed to showcase **real-world GenAI engineering practices** rather than a basic chatbot.
 
-Role-based access control
+---
 
-Data leakage prevention
+## 🚀 Features
 
-Auditability
+### 🔑 Authentication & Authorization
+- JWT-based authentication
+- Role-Based Access Control (RBAC)
+  - **Intern**
+  - **Manager**
+  - **Admin**
+- Stateless authorization using JWT tokens
 
-Retrieval tuning
+---
 
-Clean frontend interaction
+### 📚 Retrieval-Augmented Generation (RAG)
+- Vector search using **FAISS**
+- Semantic retrieval over internal documents
+- Role-aware document filtering
+- Top-K retrieval strategy
 
-🚀 Key Features
-🔐 Authentication & Authorization
+---
 
-JWT-based authentication
+### 🛡️ Security & Guardrails
+- Sensitive keyword blocking for non-admin roles
+- Role-based access enforcement at retrieval level
+- Prevents data leakage across roles
 
-Role-Based Access Control (RBAC):
+---
 
-Intern
+### 📝 Audit Logging
+- Every query is logged with:
+  - Username
+  - Role
+  - Question
+  - Decision (allowed / blocked / no results)
+  - Timestamp
+- Stored in **SQLite**
+- Enables traceability and governance
 
-Manager
+---
 
-Admin
+### 🖥️ Frontend (Streamlit)
+- Interactive chat-style UI
+- Login-based session handling
+- Role-aware responses
+- Ideal for demos and interviews
 
-Stateless authorization using tokens
+---
 
-📚 Retrieval-Augmented Generation (RAG)
+## 🏗️ Architecture
 
-Semantic search using FAISS
+Streamlit UI
+│
+▼
+FastAPI Backend
+├─ JWT Auth
+├─ RBAC
+├─ Guardrails
+├─ Audit Logs
+└─ RAG Engine
+│
+▼
+FAISS Index
+│
+▼
+LLM
 
-Text & PDF document ingestion
 
-Role-aware document filtering
+---
 
-Top-K retrieval with configurable behavior
+## 🧰 Tech Stack
 
-🛡️ Security & Guardrails
+| Layer | Technology |
+|-----|-----------|
+| Backend | FastAPI |
+| Frontend | Streamlit |
+| Vector Store | FAISS |
+| Embeddings | Sentence Transformers |
+| LLM | OpenAI-compatible API |
+| Auth | JWT |
+| Database | SQLite |
+| Language | Python 3.10 |
 
-Keyword-based sensitive information blocking
+---
 
-Role-based access enforcement
+## 📂 Project Structure
 
-Defense-in-depth approach:
+GenAI/
+├── backend/
+│ ├── auth/ # JWT authentication
+│ ├── rag/ # Embeddings, retriever, loaders
+│ ├── llm/ # LLM interaction logic
+│ ├── database/ # Audit logging (SQLite)
+│ ├── main.py # FastAPI entry point
+│ └── requirements.txt
+│
+├── streamlit_app/
+│ └── app.py # Streamlit frontend
+│
+└── README.md
 
-Document-level filtering
+---
 
-Query-level guardrails
+## ▶️ Run Locally
 
-📝 Audit Logging (Governance)
+### 1️⃣ Backend Setup
 
-Every query is logged with:
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate        # Windows
+pip install -r requirements.txt
 
-Username
 
-Role
+## ▶️ Run Backend (FastAPI)
 
-Question
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate    # Windows
+pip install -r requirements.txt
+python -m uvicorn main:app --reload
 
-Decision (allowed / blocked / no results)
 
-Timestamp
-
-Stored in SQLite
-
-Enables traceability & compliance
-
-🖥️ Frontend (Streamlit)
-
-Clean, interactive chat UI
-
-Login-based session handling
-
-Role-aware responses
-
-Supports iterative questioning
-
-Designed for demos & interviews
