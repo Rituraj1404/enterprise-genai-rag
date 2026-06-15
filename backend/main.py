@@ -6,9 +6,8 @@ from auth.jwt import create_access_token, verify_token
 from auth.roles import require_role
 from database.users_db import init_users_db, get_user, create_default_users, verify_password
 
-from rag.retriever import retrieve_documents, build_vectorstore
-# TODO: implement save_and_index_pdf in rag/retriever.py, then re-enable import + /upload-pdf route
-from llm.generator import generate_answer
+from rag.retriever import retrieve_documents, build_vectorstore, save_and_index_pdf
+from llm.generator import generate_answer, classify_query, generate_general_answer
 from database.audit import init_db, log_event
 from database.read_audit import fetch_audit_logs
 
@@ -62,7 +61,20 @@ def query_ai(req: QueryRequest, user=Depends(verify_token)):
     question = req.question
     username = user["sub"]
     role = user["role"]
-    q_lower = question.lower()
+    q_lower = question.lower().strip()
+
+    # Handle greetings/small talk without hitting the RAG pipeline —
+    # FAISS always returns top-k chunks even for "hello", which then
+    # makes the LLM say "Information not available" for a non-question.
+    GREETINGS = {"hi", "hello", "hey", "hii", "good morning", "good afternoon",
+                  "good evening", "thanks", "thank you", "bye", "goodbye"}
+    if q_lower in GREETINGS or q_lower.rstrip("!.?") in GREETINGS:
+        log_event(username=username, role=role, question=question, decision="greeting", sources=[])
+        return {
+            "answer": "Hello! How can I help you with company policies, projects, or other information today?",
+            "role": role,
+            "sources": [],
+        }
 
     # Guardrail: block sensitive keywords for non-admins
     if any(word in q_lower for word in FORBIDDEN_KEYWORDS) and role != "admin":
@@ -72,6 +84,33 @@ def query_ai(req: QueryRequest, user=Depends(verify_token)):
             "role": role,
             "sources": [],
         }
+
+    # Classify: is this a company/docs question, or general chat?
+    # Company questions go through strict RAG (context-only).
+    # General questions get a normal LLM answer, no "Information not available".
+    intent = classify_query(question)
+
+    if intent == "general":
+        answer = generate_general_answer(
+        question=question,
+        history=None,
+        user_name=username,
+        user_role=role,
+     )
+
+        log_event(
+        username=username,
+        role=role,
+        question=question,
+        decision="general",
+        sources=[]
+    )
+
+        return {
+        "answer": answer,
+        "role": role,
+        "sources": [],
+     }
 
     docs = retrieve_documents(question, role)
 
@@ -84,7 +123,13 @@ def query_ai(req: QueryRequest, user=Depends(verify_token)):
         }
 
     context = "\n\n".join(doc.page_content for doc in docs)
-    answer = generate_answer(context, question)
+    answer = generate_answer(
+    context=context,
+    question=question,
+    history=None,
+    user_name=username,
+    user_role=role,
+    )
 
     sources = [doc.metadata.get("source", "unknown") for doc in docs]
 
@@ -109,9 +154,12 @@ def get_audit_logs(user=Depends(require_role("admin"))):
 # -----------------------------
 # Upload + index PDF (admin only)
 # -----------------------------
-# TODO: re-enable once save_and_index_pdf is implemented in rag/retriever.py
-# @app.post("/upload-pdf")
-# def upload_pdf(file: UploadFile = File(...), user=Depends(require_role("admin"))):
-#     content = file.file.read()
-#     save_and_index_pdf(content, file.filename)
-#     return {"status": "indexed"}
+@app.post("/upload-pdf")
+def upload_pdf(
+    file: UploadFile = File(...),
+    role: str = "admin",  # which doc category to file this under: intern/manager/admin
+    user=Depends(require_role("admin")),
+):
+    content = file.file.read()
+    save_and_index_pdf(content, file.filename, role=role)
+    return {"status": "indexed", "filename": file.filename, "role": role}
