@@ -6,7 +6,7 @@ from rag.retriever import (
 
 TESTS = [
     "what about interns",
-    "leave policy",
+    "leave policy i wanna know",
     "manager vacation",
     "salary process",
     "project approval flow",

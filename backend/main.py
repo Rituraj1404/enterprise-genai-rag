@@ -10,9 +10,12 @@ from rag.retriever import retrieve_documents, build_vectorstore, save_and_index_
 from llm.generator import generate_answer, classify_query, generate_general_answer
 from database.audit import init_db, log_event
 from database.read_audit import fetch_audit_logs
+from collections import defaultdict
 
 app = FastAPI()
 
+
+chat_history = defaultdict(list)
 # -----------------------------
 # Startup: init DBs once
 # -----------------------------
@@ -56,90 +59,225 @@ def admin_only(user=Depends(require_role("admin"))):
 # -----------------------------
 # RAG Query
 # -----------------------------
+
+def build_contextual_question(
+    username,
+    question,
+):
+
+    history = chat_history[username]
+
+    if not history:
+        return question
+
+    recent = history[-4:]
+
+    context = "\n".join([
+        f'{x["sender"]}: {x["text"]}'
+        for x in recent
+    ])
+
+    return f"""
+Conversation:
+{context}
+
+Current question:
+{question}
+"""
+
+
 @app.post("/query")
 def query_ai(req: QueryRequest, user=Depends(verify_token)):
+
     question = req.question
+
     username = user["sub"]
     role = user["role"]
-    q_lower = question.lower().strip()
 
-    # Handle greetings/small talk without hitting the RAG pipeline —
-    # FAISS always returns top-k chunks even for "hello", which then
-    # makes the LLM say "Information not available" for a non-question.
-    GREETINGS = {"hi", "hello", "hey", "hii", "good morning", "good afternoon",
-                  "good evening", "thanks", "thank you", "bye", "goodbye"}
+    original_question = question
+
+    # conversational retrieval context
+    question = build_contextual_question(
+        username=username,
+        question=question,
+    )
+
+    q_lower = original_question.lower().strip()
+
+    GREETINGS = {
+        "hi",
+        "hello",
+        "hey",
+        "hii",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "bye",
+        "goodbye",
+    }
+
     if q_lower in GREETINGS or q_lower.rstrip("!.?") in GREETINGS:
-        log_event(username=username, role=role, question=question, decision="greeting", sources=[])
+        log_event(
+            username=username,
+            role=role,
+            question=original_question,
+            decision="greeting",
+            sources=[],
+        )
+
         return {
             "answer": "Hello! How can I help you with company policies, projects, or other information today?",
             "role": role,
             "sources": [],
         }
 
-    # Guardrail: block sensitive keywords for non-admins
     if any(word in q_lower for word in FORBIDDEN_KEYWORDS) and role != "admin":
-        log_event(username=username, role=role, question=question, decision="blocked", sources=[])
+
+        log_event(
+            username=username,
+            role=role,
+            question=original_question,
+            decision="blocked",
+            sources=[],
+        )
+
         return {
             "answer": "You are not authorized to access financial information.",
             "role": role,
             "sources": [],
         }
 
-    # Classify: is this a company/docs question, or general chat?
-    # Company questions go through strict RAG (context-only).
-    # General questions get a normal LLM answer, no "Information not available".
-    intent = classify_query(question)
+    intent = classify_query(original_question)
 
+    # ---------- GENERAL ----------
     if intent == "general":
+
         answer = generate_general_answer(
-        question=question,
-        history=None,
-        user_name=username,
-        user_role=role,
-     )
+            question=question,
+            history=chat_history[username],
+            user_name=username,
+            user_role=role,
+        )
+
+        # save memory
+        chat_history[username].append({
+            "sender": "user",
+            "text": original_question,
+        })
+
+        chat_history[username].append({
+            "sender": "ai",
+            "text": answer,
+        })
 
         log_event(
-        username=username,
-        role=role,
-        question=question,
-        decision="general",
-        sources=[]
-    )
+            username=username,
+            role=role,
+            question=original_question,
+            decision="general",
+            sources=[],
+        )
 
         return {
-        "answer": answer,
-        "role": role,
-        "sources": [],
-     }
+            "answer": answer,
+            "role": role,
+            "sources": [],
+        }
 
-    docs = retrieve_documents(question, role)
+    # ---------- RAG ----------
+    docs = retrieve_documents(
+        question,
+        role,
+    )
 
     if not docs:
-        log_event(username=username, role=role, question=question, decision="no_results", sources=[])
+
+        log_event(
+            username=username,
+            role=role,
+            question=original_question,
+            decision="no_results",
+            sources=[],
+        )
+
         return {
             "answer": "No relevant documents found for your role.",
             "role": role,
             "sources": [],
         }
 
-    context = "\n\n".join(doc.page_content for doc in docs)
+    context = "\n\n".join(
+        doc.page_content
+        for doc in docs
+    )
+    print("\n========== CONTEXT ==========")
+    print(context)
+    print("=============================\n")
+
     answer = generate_answer(
-    context=context,
-    question=question,
-    history=None,
-    user_name=username,
-    user_role=role,
+        context=context,
+        question=original_question,
+        history=chat_history[username],
+        user_name=username,
+        user_role=role,
     )
 
-    sources = [doc.metadata.get("source", "unknown") for doc in docs]
+    sources = []
 
-    log_event(username=username, role=role, question=question, decision="allowed", sources=sources)
+    for doc in docs:  
+        src = doc.metadata.get(
+        "source",
+        "unknown"
+        )
+        if src not in sources:
+            sources.append(src)
+    # append citations
+    answer += "\n\nSources:\n"
+
+    for s in sources:
+         answer += f"• {s}\n"
+
+                
+
+    # save memory
+    chat_history[username].append({
+        "sender": "user",
+        "text": original_question,
+    })
+
+    chat_history[username].append({
+        "sender": "ai",
+        "text": answer,
+    })
+
+    sources = [
+        doc.metadata.get(
+            "source",
+            "unknown",
+        )
+        for doc in docs
+    ]
+
+    log_event(
+        username=username,
+        role=role,
+        question=original_question,
+        decision="allowed",
+        sources=sources,
+    )
 
     return {
         "answer": answer,
         "role": role,
-        "sources": [doc.metadata for doc in docs],
+        "sources": [
+            doc.metadata
+            for doc in docs
+        ],
     }
+
+
 
 
 # -----------------------------
