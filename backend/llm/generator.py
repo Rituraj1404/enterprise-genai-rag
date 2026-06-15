@@ -8,8 +8,8 @@ def generate_answer(context: str, question: str) -> str:
 You are an enterprise knowledge assistant.
 
 Rules:
-- Answer ONLY using the provided context
-- If context is insufficient, say "Information not available"
+- Answer using the provided context. Multiple unrelated chunks may be included; use only the relevant ones.
+- If NONE of the context relates to the question, say "Information not available"
 - Be concise and factual
 - Do NOT hallucinate
 
@@ -20,7 +20,6 @@ Question:
 {question}
 
 Answer:
-
 """
 
     response = client.chat.completions.create(

@@ -1,159 +1,117 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+
 from auth.jwt import create_access_token, verify_token
 from auth.roles import require_role
-from langchain_openai import ChatOpenAI
-from fastapi import Depends
-from rag.retriever import retrieve_documents
-from auth.jwt import verify_token
-from database.read_audit import fetch_audit_logs
+from database.users_db import init_users_db, get_user, create_default_users, verify_password
+
+from rag.retriever import retrieve_documents, build_vectorstore
+# TODO: implement save_and_index_pdf in rag/retriever.py, then re-enable import + /upload-pdf route
+from llm.generator import generate_answer
 from database.audit import init_db, log_event
-
-
+from database.read_audit import fetch_audit_logs
 
 app = FastAPI()
 
-
-
+# -----------------------------
+# Startup: init DBs once
+# -----------------------------
 init_db()
+init_users_db()
+create_default_users()  # seeds intern/manager/admin if table empty
 
-# Dummy users (replace with DB later)
-fake_users = {
-    "intern": {"password": "intern123", "role": "intern"},
-    "manager": {"password": "manager123", "role": "manager"},
-    "admin": {"password": "admin123", "role": "admin"},
-}
+# Build vectorstore once at startup (not on every import in hot-reload loops)
+build_vectorstore()
 
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Depends, HTTPException
+FORBIDDEN_KEYWORDS = ["revenue", "financial", "salary", "profit"]
 
+
+class QueryRequest(BaseModel):
+    question: str
+
+
+# -----------------------------
+# Auth
+# -----------------------------
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    username = form_data.username
-    password = form_data.password
-
-    user = fake_users.get(username)
-    if not user or user["password"] != password:
+    user = get_user(form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token({
-        "sub": username,
-        "role": user["role"]
-    })
-
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }
+    token = create_access_token({"sub": user.username, "role": user.role})
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @app.get("/protected")
 def protected(user=Depends(verify_token)):
     return {"message": "Access granted", "user": user}
 
+
 @app.get("/admin-only")
 def admin_only(user=Depends(require_role("admin"))):
     return {"message": "Welcome Admin"}
 
-from rag.retriever import retrieve_documents, build_vectorstore
 
-build_vectorstore()
-
-from llm.generator import generate_answer
-from fastapi import Depends
-from auth.jwt import verify_token
-from rag.retriever import retrieve_documents
-
-FORBIDDEN_KEYWORDS = ["revenue", "financial", "salary", "profit"]
-
-from pydantic import BaseModel
-
-class QueryRequest(BaseModel):
-    question: str
-    
-    
-
+# -----------------------------
+# RAG Query
+# -----------------------------
 @app.post("/query")
 def query_ai(req: QueryRequest, user=Depends(verify_token)):
     question = req.question
-
     username = user["sub"]
     role = user["role"]
     q_lower = question.lower()
 
-    # 🔐 Guardrail
+    # Guardrail: block sensitive keywords for non-admins
     if any(word in q_lower for word in FORBIDDEN_KEYWORDS) and role != "admin":
-        log_event(
-            username=username,
-            role=role,
-            question=question,
-            decision="blocked",
-            sources=[]
-        )
-
+        log_event(username=username, role=role, question=question, decision="blocked", sources=[])
         return {
             "answer": "You are not authorized to access financial information.",
             "role": role,
-            "sources": []
+            "sources": [],
         }
 
     docs = retrieve_documents(question, role)
 
     if not docs:
-        log_event(
-            username=username,
-            role=role,
-            question=question,
-            decision="no_results",
-            sources=[]
-        )
-
+        log_event(username=username, role=role, question=question, decision="no_results", sources=[])
         return {
             "answer": "No relevant documents found for your role.",
             "role": role,
-            "sources": []
+            "sources": [],
         }
 
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context = "\n\n".join(doc.page_content for doc in docs)
     answer = generate_answer(context, question)
-  
 
-    sources = [doc.metadata["source"] for doc in docs]
+    sources = [doc.metadata.get("source", "unknown") for doc in docs]
 
-    log_event(
-        username=username,
-        role=role,
-        question=question,
-        decision="allowed",
-        sources=sources
-    )
+    log_event(username=username, role=role, question=question, decision="allowed", sources=sources)
 
     return {
         "answer": answer,
         "role": role,
-        "sources": [doc.metadata for doc in docs]
+        "sources": [doc.metadata for doc in docs],
     }
 
 
+# -----------------------------
+# Audit logs (admin only)
+# -----------------------------
 @app.get("/audit-logs")
-def get_audit_logs(user=Depends(verify_token)):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-
+def get_audit_logs(user=Depends(require_role("admin"))):
     logs = fetch_audit_logs()
     return {"logs": logs}
 
-from fastapi import UploadFile, File
 
-@app.post("/upload-pdf")
-def upload_pdf(file: UploadFile = File(...), user=Depends(verify_token)):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-
-    content = file.file.read()
-    save_and_index_pdf(content, file.filename)
-
-    return {"status": "indexed"}
-
-
-    
-    
+# -----------------------------
+# Upload + index PDF (admin only)
+# -----------------------------
+# TODO: re-enable once save_and_index_pdf is implemented in rag/retriever.py
+# @app.post("/upload-pdf")
+# def upload_pdf(file: UploadFile = File(...), user=Depends(require_role("admin"))):
+#     content = file.file.read()
+#     save_and_index_pdf(content, file.filename)
+#     return {"status": "indexed"}

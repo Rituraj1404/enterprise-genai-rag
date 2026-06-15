@@ -3,14 +3,7 @@ import requests
 
 API_BASE = "http://127.0.0.1:8000"
 
-with st.sidebar:
-    st.title("🔐 Session")
-    if st.session_state.get("token"):
-        st.success("Authenticated")
-    else:
-        st.warning("Not logged in")
-
-
+# set_page_config MUST be the first Streamlit call
 st.set_page_config(
     page_title="Enterprise GenAI Assistant",
     page_icon="🤖",
@@ -21,34 +14,91 @@ st.set_page_config(
 if "token" not in st.session_state:
     st.session_state.token = None
 
+if "role" not in st.session_state:
+    st.session_state.role = None
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+# ------------------ SIDEBAR ------------------
+with st.sidebar:
+    st.title("🔐 Session")
+    if st.session_state.token:
+        st.success("Authenticated")
+        if st.session_state.role:
+            st.caption(f"Role: {st.session_state.role}")
+    else:
+        st.warning("Not logged in")
+
 # ------------------ API CALLS ------------------
 def login_api(username, password):
-    res = requests.post(
-        f"{API_BASE}/login",
-        data={"username": username, "password": password},
-        timeout=10
-    )
+    try:
+        res = requests.post(
+            f"{API_BASE}/login",
+            data={"username": username, "password": password},
+            timeout=10
+        )
+    except requests.exceptions.RequestException as e:
+        st.error(f"Could not reach backend: {e}")
+        return None
+
     if res.status_code != 200:
         return None
     return res.json()
 
+
 def query_api(token, question):
-    print(">>> SENDING QUESTION:", question)
+    try:
+        res = requests.post(
+            f"{API_BASE}/query",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"question": question},
+            timeout=20
+        )
+    except requests.exceptions.RequestException as e:
+        st.error(f"Could not reach backend: {e}")
+        return {"answer": "", "role": "", "sources": []}
 
-    res = requests.post(
-        f"{API_BASE}/query",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"question": question},
-        timeout=20
-    )
-
-    print(">>> STATUS CODE:", res.status_code)
-    print(">>> RESPONSE:", res.text)
+    if res.status_code != 200:
+        st.error(f"Query failed ({res.status_code}): {res.text}")
+        return {"answer": "", "role": "", "sources": []}
 
     return res.json()
+
+
+def get_audit_logs(token):
+    try:
+        res = requests.get(
+            f"{API_BASE}/audit-logs",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10
+        )
+    except requests.exceptions.RequestException as e:
+        st.error(f"Could not reach backend: {e}")
+        return None
+
+    if res.status_code != 200:
+        return None
+    return res.json().get("logs", [])
+
+
+def upload_pdf_api(token, uploaded_file):
+    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+    try:
+        res = requests.post(
+            f"{API_BASE}/upload-pdf",
+            headers={"Authorization": f"Bearer {token}"},
+            files=files,
+            timeout=60
+        )
+    except requests.exceptions.RequestException as e:
+        st.error(f"Could not reach backend: {e}")
+        return False
+
+    if res.status_code != 200:
+        st.error(f"Upload failed ({res.status_code}): {res.text}")
+        return False
+    return True
 
 
 # ------------------ UI ------------------
@@ -84,8 +134,7 @@ else:
             st.markdown(f"**AI:** {msg['text']}")
             st.caption(f"🔑 Role used: {msg['role']}")
 
-
-    # Chat input (IMPORTANT: use form)
+    # Chat input
     with st.form("chat_form"):
         question = st.text_input("Ask a question")
         ask_btn = st.form_submit_button("Ask")
@@ -93,11 +142,10 @@ else:
     if ask_btn and question.strip():
         response = query_api(st.session_state.token, question)
 
-        st.session_state.chat.append({
-            "sender": "user",
-            "text": question
-        })
+        if response.get("role"):
+            st.session_state.role = response["role"]
 
+        st.session_state.chat.append({"sender": "user", "text": question})
         st.session_state.chat.append({
             "sender": "ai",
             "text": response.get("answer", ""),
@@ -105,33 +153,32 @@ else:
         })
 
         st.rerun()
-        
-    if st.session_state.token:
-        st.divider()
-        st.subheader("📋 Audit Logs (Admin Only)")
 
-        headers = {"Authorization": f"Bearer {st.session_state.token}"}
-        res = requests.get(f"{API_BASE}/audit-logs", headers=headers)
-        if res.status_code == 200:
-             logs = res.json()["logs"]
-             st.table(logs)
-             
-             st.divider()
-st.subheader("📄 Upload PDF")
+    # ---- Audit logs (admin only - backend enforces) ----
+    st.divider()
+    st.subheader("📋 Audit Logs (Admin Only)")
+    logs = get_audit_logs(st.session_state.token)
+    if logs is not None:
+        if logs:
+            st.table(logs)
+        else:
+            st.info("No audit logs yet.")
+    else:
+        st.caption("Not available for your role.")
 
-uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+    # ---- Upload PDF (admin only - backend enforces) ----
+    st.divider()
+    st.subheader("📄 Upload PDF")
+    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 
-if uploaded_file:
-    files = {"file": uploaded_file}
-    res = requests.post(f"{API_BASE}/upload-pdf", files=files)
+    if uploaded_file:
+        if upload_pdf_api(st.session_state.token, uploaded_file):
+            st.success("PDF indexed successfully")
 
-    if res.status_code == 200:
-        st.success("PDF indexed successfully")
-
-
-
-    # Logout
+    # ---- Logout ----
+    st.divider()
     if st.button("Logout"):
         st.session_state.token = None
+        st.session_state.role = None
         st.session_state.chat = []
         st.rerun()

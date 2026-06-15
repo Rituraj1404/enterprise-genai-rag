@@ -1,9 +1,11 @@
+import re
 from pathlib import Path
 from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 BASE_DATA_PATH = Path(__file__).resolve().parents[2] / "data"
+
 
 def load_documents():
     documents = []
@@ -31,6 +33,13 @@ def load_documents():
             elif file.suffix == ".pdf":
                 loader = PyPDFLoader(str(file))
                 docs = loader.load()
+
+                # PyPDF often extracts text with stray newlines/spaces
+                # between every word (e.g. "can\n \nbe\n \nreached").
+                # Collapse all whitespace runs into single spaces so the
+                # text reads naturally and doesn't dilute LLM context.
+                for doc in docs:
+                    doc.page_content = re.sub(r"\s+", " ", doc.page_content).strip()
 
             else:
                 continue

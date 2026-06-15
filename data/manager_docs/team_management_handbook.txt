@@ -1,0 +1,21 @@
+Manager Handbook: Team Management Practices
+
+This document outlines core responsibilities and practices for engineering managers.
+
+Team Structure
+Each manager typically oversees a team of 5-8 engineers, including a mix of senior, mid-level, and intern roles. Managers report into a Director, who reports into VP Engineering.
+
+One-on-Ones
+Managers are expected to hold biweekly 1:1 meetings with each direct report. Topics should include career growth, current project blockers, and general well-being check-ins.
+
+Performance Reviews
+Managers conduct formal performance reviews twice a year (mid-year and annual). Reviews should be based on documented examples of work, peer feedback, and goal completion against the OKRs set at the start of the cycle.
+
+Hiring and Interviews
+Managers participate in the hiring loop for their team's open positions, typically conducting the technical deep-dive round and the final hiring decision meeting alongside HR.
+
+Budget and Headcount Planning
+Each quarter, managers submit headcount requests and budget justifications to their Director. This includes intern-to-fulltime conversion proposals, which require performance review documentation.
+
+Escalation Process
+If a team member raises a conduct or HR issue, managers must escalate to HR within 24 hours and should not attempt to resolve serious matters informally.

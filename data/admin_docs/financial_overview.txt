@@ -1,0 +1,27 @@
+Company Financial Overview (Confidential - Admin Only)
+
+This document contains sensitive financial information restricted to senior leadership and administrators.
+
+Annual Revenue
+The company reported total annual revenue of $48.2 million for the last fiscal year, representing a 22% year-over-year growth driven primarily by enterprise contract renewals.
+
+Profit Margins
+Net profit margin stood at 14.6%, with operating expenses accounting for 61% of total revenue. The largest expense categories were salaries and benefits (58% of operating costs) and cloud infrastructure (17%).
+
+Salary Bands
+- Intern: $1,200 - $1,800 per month stipend, varies by location.
+- Software Engineer (L1-L2): $65,000 - $95,000 annual base.
+- Senior Engineer (L3-L4): $110,000 - $150,000 annual base.
+- Engineering Manager: $140,000 - $180,000 annual base, plus performance bonus up to 15%.
+
+Departmental Budget Allocation
+Engineering: 45% of total operating budget.
+Sales and Marketing: 28%.
+G&A (General and Administrative): 15%.
+R&D: 12%.
+
+Funding and Investment
+The company closed a Series C funding round of $30 million last year, led by a growth equity firm, bringing total funding to date to $72 million.
+
+Profit Sharing
+A portion of annual profits, up to 5% of net income, is allocated to the employee bonus pool, distributed based on individual and team performance ratings.

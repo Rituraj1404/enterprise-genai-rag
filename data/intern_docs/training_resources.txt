@@ -1,0 +1,20 @@
+Intern Training Resources
+
+This document lists the learning resources and internal tools available to interns during their tenure.
+
+Internal Tools
+- Jira: used for sprint planning and task tracking. Every intern is added to their team's board in the first week.
+- Confluence: internal documentation wiki for engineering processes, architecture diagrams, and meeting notes.
+- Slack: primary communication tool. Key channels include #general, #engineering, #random, and #it-helpdesk.
+
+Learning Plan
+Interns are expected to complete an internal "Bootcamp" track covering company codebases, coding standards, and the deployment pipeline within the first 2 weeks. The Bootcamp is self-paced but mentors will check progress weekly.
+
+Weekly Check-ins
+Every Friday, interns have a 30-minute sync with their mentor to discuss progress, blockers, and learning goals for the following week.
+
+Performance Reviews
+Interns receive informal feedback every 2 weeks and a formal written review at the 3-month and 6-month marks. These reviews form the basis for any full-time conversion decisions.
+
+Internal Communication Etiquette
+Use threads in Slack for detailed discussions to keep channels readable. Avoid direct messages for work-related decisions; prefer team channels for visibility.

@@ -1,0 +1,6 @@
+username,password,role
+alice,alicepass123,intern
+bob,bobpass123,manager
+carol,carolpass123,admin
+dave,davepass123,intern
+eve,evepass123,manager

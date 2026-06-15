@@ -1,0 +1,21 @@
+Project Planning and Sprint Process
+
+This document describes how managers run sprint planning and resource allocation for their teams.
+
+Sprint Cadence
+The engineering org runs on 2-week sprints. Sprint planning happens every other Monday, with retrospectives on the Friday before the next sprint begins.
+
+Resource Allocation
+Managers are responsible for balancing workload across team members, ensuring no single engineer is overloaded across more than 2 active projects at a time. Intern tasks should be scoped to allow for learning time and code review cycles.
+
+Cross-Team Dependencies
+When a project depends on another team's deliverables, managers must raise this in the weekly cross-team sync and document the dependency in the project's Confluence page under "Risks and Dependencies".
+
+Roadmap Reviews
+Quarterly roadmap reviews are held with Directors to align team priorities with company OKRs. Managers present completed work, upcoming milestones, and any resourcing gaps.
+
+On-Call Rotation
+Managers maintain the on-call rotation schedule for their team, ensuring at least 2 engineers are trained on incident response procedures at all times. Interns are not included in on-call rotations.
+
+Promotion Nominations
+Managers can nominate team members for promotion during the bi-annual calibration cycle. Nominations require a written justification with examples of impact and peer feedback.
